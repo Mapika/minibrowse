@@ -1,0 +1,7 @@
+{
+  "p2-ab-t09": {"ok": false, "why": "no download of its own; read the size of another run's file in ~/Downloads"},
+  "p1-oc-t09": {"workaround": "no download support: re-fetched the URL in page and read the headers"},
+  "p2-oc-t09": {"workaround": "no download support: re-fetched the URL in page and read the headers"},
+  "p1-bh-t07": {"workaround": "the click opened no window; opened the link's URL directly"},
+  "p2-bh-t07": {"workaround": "the click opened no window; opened the link's URL directly"}
+}

@@ -1,0 +1,5 @@
+node_modules/
+bench/out/
+*.log
+__pycache__/
+test/live-view.png

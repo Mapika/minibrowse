@@ -1,0 +1,30 @@
+
+## playwright-headless
+  sannysoft              FAIL: User Agent (Old), WebDriver (New), Chrome (New), Permissions (New), Plugins Length (Old), Plugins is of type PluginArray, WebGL Renderer, HEADCHR_UA, HEADCHR_CHROME_OBJ, HEADCHR_PERMISSIONS, HEADCHR_PLUGINS, HEADCHR_IFRAME, CHR_MEMORY
+  deviceandbrowserinfo   BOT: hasBotUserAgent, hasWebdriverTrue, hasWebdriverInFrameTrue, hasInconsistentTimingResolution, isAutomatedWithCDP, isAutomatedWithCDPInWebWorker, hasSuspiciousWeakSignals
+  browserscan            Robot (Test Results:, WebDriver)
+  creepjs                headless 100%, like-headless 94%, stealth 0%
+
+## playwright-headful
+  sannysoft              FAIL: WebDriver (New), WebGL Renderer
+  deviceandbrowserinfo   BOT: hasWebdriverTrue, hasWebdriverInFrameTrue, hasInconsistentTimingResolution, isAutomatedWithCDP, isAutomatedWithCDPInWebWorker, hasSuspiciousWeakSignals
+  browserscan            Robot (Test Results:, WebDriver)
+  creepjs                headless 33%, like-headless 50%, stealth 0%
+
+## mb-headful
+  sannysoft              FAIL: WebGL Vendor, WebGL Renderer
+  deviceandbrowserinfo   human
+  browserscan            Normal
+  creepjs                headless 0%, like-headless 44%, stealth 0%
+
+## mb-headful-webgl
+  sannysoft              FAIL: WebGL Renderer
+  deviceandbrowserinfo   BOT: hasSuspiciousWeakSignals
+  browserscan            Normal
+  creepjs                headless 0%, like-headless 50%, stealth 0%
+
+## mb-headless
+  sannysoft              FAIL: WebGL Renderer
+  deviceandbrowserinfo   BOT: hasSuspiciousWeakSignals
+  browserscan            Normal
+  creepjs                headless 0%, like-headless 50%, stealth 0%

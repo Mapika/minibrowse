@@ -1,0 +1,16 @@
+{"run": "t1-agent-browser", "turns": 6, "uncached_in": 12, "cache_write": 19021, "cache_read": 388451, "output": 990, "bash_calls": 5, "tool_result_chars": 18405, "total_processed": 408474}
+{"run": "t1-browser-harness", "turns": 4, "uncached_in": 8, "cache_write": 16038, "cache_read": 244748, "output": 618, "bash_calls": 3, "tool_result_chars": 10486, "total_processed": 261412}
+{"run": "t1-opencode", "turns": 3, "uncached_in": 6, "cache_write": 18548, "cache_read": 180602, "output": 424, "bash_calls": 2, "tool_result_chars": 19087, "total_processed": 199580}
+{"run": "t2-agent-browser", "turns": 5, "uncached_in": 10, "cache_write": 18971, "cache_read": 319315, "output": 577, "bash_calls": 4, "tool_result_chars": 19055, "total_processed": 338873}
+{"run": "t2-opencode", "turns": 3, "uncached_in": 6, "cache_write": 18515, "cache_read": 180592, "output": 443, "bash_calls": 2, "tool_result_chars": 19013, "total_processed": 199556}
+{"run": "t2-browser-harness", "turns": 9, "uncached_in": 18, "cache_write": 19205, "cache_read": 592368, "output": 2259, "bash_calls": 7, "tool_result_chars": 13748, "total_processed": 613850}
+{"run": "t3-browser-harness", "turns": 3, "uncached_in": 6, "cache_write": 17090, "cache_read": 178551, "output": 570, "bash_calls": 1, "tool_result_chars": 12372, "total_processed": 196217}
+{"run": "t3-opencode", "turns": 3, "uncached_in": 6, "cache_write": 20185, "cache_read": 181613, "output": 532, "bash_calls": 1, "tool_result_chars": 21754, "total_processed": 202336}
+{"run": "t3-agent-browser", "turns": 6, "uncached_in": 12, "cache_write": 20041, "cache_read": 389498, "output": 1085, "bash_calls": 5, "tool_result_chars": 20041, "total_processed": 410636}
+{"run": "t1-mb", "turns": 4, "uncached_in": 8, "cache_write": 16528, "cache_read": 242462, "output": 722, "bash_calls": 3, "tool_result_chars": 10302, "total_processed": 259720}
+{"run": "t2-mb", "turns": 3, "uncached_in": 6, "cache_write": 13343, "cache_read": 175255, "output": 384, "bash_calls": 2, "tool_result_chars": 4266, "total_processed": 188988}
+{"run": "t3-mb", "turns": 4, "uncached_in": 8, "cache_write": 14117, "cache_read": 239541, "output": 441, "bash_calls": 3, "tool_result_chars": 5224, "total_processed": 254107}
+{"run": "t4-mb", "turns": 3, "uncached_in": 6, "cache_write": 13365, "cache_read": 175433, "output": 540, "bash_calls": 2, "tool_result_chars": 3576, "total_processed": 189344}
+{"run": "t4-agent-browser", "turns": 6, "uncached_in": 12, "cache_write": 21246, "cache_read": 393384, "output": 884, "bash_calls": 5, "tool_result_chars": 18782, "total_processed": 415526}
+{"run": "t4-browser-harness", "turns": 3, "uncached_in": 6, "cache_write": 16172, "cache_read": 178149, "output": 764, "bash_calls": 2, "tool_result_chars": 10348, "total_processed": 195091}
+{"run": "t4-opencode", "turns": 3, "uncached_in": 6, "cache_write": 20422, "cache_read": 185350, "output": 558, "bash_calls": 1, "tool_result_chars": 22117, "total_processed": 206336}

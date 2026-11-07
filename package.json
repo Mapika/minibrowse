@@ -1,0 +1,43 @@
+{
+  "name": "minibrowse",
+  "version": "0.1.0",
+  "description": "A minimal browser for AI agents: real Chrome driven from the shell, compact pages, few calls, zero dependencies",
+  "keywords": [
+    "browser",
+    "ai",
+    "agent",
+    "llm",
+    "chrome",
+    "cdp",
+    "automation",
+    "playwright",
+    "headless",
+    "scraping"
+  ],
+  "homepage": "https://github.com/Mapika/minibrowse#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Mapika/minibrowse.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Mapika/minibrowse/issues"
+  },
+  "type": "module",
+  "bin": {
+    "mb": "mb.mjs"
+  },
+  "files": [
+    "mb.mjs",
+    "guard.mjs",
+    "SKILL.md",
+    "SECURITY.md",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "test/run.sh",
+    "test:guard": "node test/guard-test.mjs"
+  }
+}
