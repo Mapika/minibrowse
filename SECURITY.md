@@ -39,7 +39,9 @@ document covers what mb defends against, how, and what it leaves to you.
 - **Uploads:** files only come from `~/.mb/<session>/files`, `--files` and `MB_FILE_ROOTS`.
   - Symlinks are resolved first.
   - Credentials and browser data are always refused: `.ssh`, `.aws`, `.env`, `*.pem`, `*.key`,
-    `Cookies`, `Login Data`, mb's own profile and state.
+    `Cookies`, `Login Data`, mb's own profile and state. On Windows, also the credential vault and
+    DPAPI keys (`AppData\...\Microsoft\Credentials`, `Protect`, `Vault`), browser `User Data`
+    folders and registry hives, matched case-insensitively.
   - `fill` and `type` never upload; only `mb upload` on a real file input does.
 - **Secrets:** a person stores a password or key with
   `printf %s "$PW" | mb secret add NAME --origin https://site`, and the agent types it with
@@ -86,6 +88,12 @@ document covers what mb defends against, how, and what it leaves to you.
   (profile, state, socket, logs, downloads).
 - **The daemon's socket** is a Unix socket in that private directory, so only the same user can drive
   the browser.
+  - On Windows it's a named pipe instead, with a random 128-bit name that only `daemon.json` in the
+    user's folder records. Other users can't find the pipe, and can't create it first to catch
+    commands. The pipe's default ACL also gives other non-admin users read access only, which isn't
+    enough to send a command.
+  - On Windows, the private-file modes above don't apply. mb's files rely on the user profile's ACLs
+    (by default only that user, SYSTEM and Administrators can read them).
 - **Xvfb** runs with a private X authority cookie instead of `-ac`, and mb uses a display only if the
   lock file names its own Xvfb.
 - **Chrome's environment:** it gets a minimal environment, so the agent's API keys and tokens don't

@@ -1,13 +1,18 @@
 #!/bin/bash
 # Regression tests for mb against test/site (served on localhost:8766 and, cross-origin, 127.0.0.1:8766).
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+WIN=; case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) WIN=1 ;; esac   # Git Bash on Windows
+command -v mb >/dev/null || mb() { node "$ROOT/mb.mjs" "$@"; }    # not installed: use this checkout
+PY=python3; $PY -c '' 2>/dev/null || PY=python                    # Windows usually only has "python"
 fuser -k 8766/tcp >/dev/null 2>&1; sleep 0.3   # a leftover server would serve stale pages
-python3 "$(dirname "$0")/server.py" 8766 & SERVER=$! ; sleep 1
+$PY "$(dirname "$0")/server.py" 8766 & SERVER=$! ; sleep 1
 kill -0 $SERVER 2>/dev/null || { echo "test server did not start"; exit 1; }
 export MB_SESSION=mbtest
 mb stop >/dev/null 2>&1
 # the test site is on this machine, which the egress guard blocks unless allowed
 mb start --allow-private localhost:8766,127.0.0.1:8766 >/dev/null 2>&1
 F="$HOME/.mb/$MB_SESSION/files/receipt.txt"; echo receipt > "$F"   # uploads come only from allowed folders
+[ -n "$WIN" ] && F=$(cygpath -m "$F")   # node needs C:/... paths, not /c/...
 pass=0; fail=0
 check() { local neg=0 pat="$3"; if [ "$3" = "-v" ]; then neg=1; pat="$4"; fi
   if echo "$2" | grep -q -- "$pat"; then hit=1; else hit=0; fi
@@ -131,7 +136,13 @@ check "schemes: file:// refused" "$(mb goto file:///etc/passwd 2>&1)" 'refusing 
 check "schemes: chrome:// refused" "$(mb goto chrome://settings 2>&1)" 'refusing to open chrome: URLs'
 check "schemes: javascript: refused" "$(mb goto 'javascript:alert(1)' 2>&1)" 'refusing to open javascript: URLs'
 mb goto http://localhost:8766/ >/dev/null
-check "uploads: /etc/passwd refused" "$(mb upload '#file' /etc/passwd 2>&1)" 'files can only come from'
+SYSF=/etc/passwd; [ -n "$WIN" ] && SYSF=C:/Windows/win.ini
+check "uploads: $SYSF refused" "$(mb upload '#file' $SYSF 2>&1)" 'files can only come from'
+if [ -n "$WIN" ]; then # Windows credential stores, matched case-insensitively
+  CRED="$HOME/.mb/$MB_SESSION/files/appdata/roaming/microsoft/credentials"; mkdir -p "$CRED"; echo x > "$CRED/blob"
+  check "uploads: Windows credential store refused even in allowed folders" "$(mb upload '#file' "$(cygpath -m "$CRED/blob")" 2>&1)" 'looks like credentials'
+  rm -rf "$HOME/.mb/$MB_SESSION/files/appdata"
+fi
 echo "SECRET=1" > "$HOME/.mb/$MB_SESSION/files/.env"
 check "uploads: credential-looking files refused even in allowed folders" "$(mb upload '#file' "$HOME/.mb/$MB_SESSION/files/.env" 2>&1)" 'looks like credentials'
 check "fill never uploads" "$(mb fill '#file' "$F" 2>&1)" 'use: mb upload'
@@ -151,8 +162,14 @@ check "text: visible injection flagged" "$T" 'possible prompt injection'
 check "raw CDP: cookie dump blocked" "$(mb cdp Network.getAllCookies 2>&1)" 'is blocked'
 check "run: no Node process access" "$(mb run <<<'return typeof process + "/" + typeof require')" 'undefined/undefined'
 check "run: no string code generation" "$(mb run <<<'return eval("1+1")' 2>&1)" 'error'
-check "no CDP port by default" "$(tr '\0' ' ' < /proc/$(cat $HOME/.mb/$MB_SESSION/state.json | python3 -c 'import json,sys;print(json.load(sys.stdin)["pid"])')/cmdline)" -v 'remote-debugging-port'
-check "files are private" "$(stat -c %a $HOME/.mb/$MB_SESSION $HOME/.mb/$MB_SESSION/state.json $HOME/.mb/$MB_SESSION/mb.sock | tr '\n' ' ')" '^700 600 600'
+CPID=$($PY -c 'import json,sys;print(json.load(sys.stdin)["pid"])' < "$HOME/.mb/$MB_SESSION/state.json")
+if [ -n "$WIN" ]; then
+  check "no CDP port by default" "$(powershell -NoProfile -Command "(Get-CimInstance Win32_Process -Filter 'ProcessId=$CPID').CommandLine")" -v 'remote-debugging-port'
+  check "daemon listens on a random named pipe" "$(cat "$HOME/.mb/$MB_SESSION/daemon.json")" 'pipe\\\\mb-[0-9a-f]\{32\}"'
+else
+  check "no CDP port by default" "$(tr '\0' ' ' < /proc/$CPID/cmdline)" -v 'remote-debugging-port'
+  check "files are private" "$(stat -c %a $HOME/.mb/$MB_SESSION $HOME/.mb/$MB_SESSION/state.json $HOME/.mb/$MB_SESSION/mb.sock | tr '\n' ' ')" '^700 600 600'
+fi
 V=$(mb view --ttl 3); VU=$(echo "$V" | grep -o 'http://[^ ]*')
 check "view: link works" "$(curl -s -o /dev/null -w '%{http_code}' "$VU")" '^200'
 check "view: wrong Host header refused" "$(curl -s -o /dev/null -w '%{http_code}' -H 'Host: evil.example' "$VU")" '^421'

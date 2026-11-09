@@ -26,6 +26,11 @@ mb needs Node 22+, Chrome or Chromium, and Xvfb.
 npm i -g github:Mapika/minibrowse
 ```
 
+**Windows:** mb needs Node 22+ and Chrome (it falls back to Edge if Chrome isn't installed; set
+`MB_CHROME` to use another build). Windows has no Xvfb, so Chrome gets a real window, parked
+off-screen and opened without taking keyboard focus. Set `MB_USE_DISPLAY=1` to see it on screen.
+`MB_FILE_ROOTS` is separated by `;` there. `test/run.sh` runs under Git Bash.
+
 For containers, the `Dockerfile` builds an image with Chrome, Xvfb, fonts and a non-root user:
 
 ```bash
