@@ -28,8 +28,10 @@ npm i -g github:Mapika/minibrowse
 
 **Windows:** mb needs Node 22+ and Chrome (it falls back to Edge if Chrome isn't installed; set
 `MB_CHROME` to use another build). Windows has no Xvfb, so Chrome gets a real window, parked
-off-screen and opened without taking keyboard focus. Set `MB_USE_DISPLAY=1` to see it on screen.
-`MB_FILE_ROOTS` is separated by `;` there. `test/run.sh` runs under Git Bash.
+off-screen and opened without taking keyboard focus. Pages can see that off-screen position
+(`screenX` far below zero), which a bot detector could notice. `MB_USE_DISPLAY=1` puts the window on
+screen at 0,0 instead, still without taking focus. `MB_FILE_ROOTS` is separated by `;` there.
+`test/run.sh` runs under Git Bash.
 
 For containers, the `Dockerfile` builds an image with Chrome, Xvfb, fonts and a non-root user:
 

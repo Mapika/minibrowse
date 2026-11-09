@@ -37,7 +37,7 @@ await page.getByText('Welcome').waitFor();
 return await page.locator('h1').innerText();
 JS
 ```
-- `page` supports `goto`, `locator(css)`, `getByRole/Text/Label/Placeholder/TestId`, `.click() .fill() .check() .selectOption() .press() .hover() .setInputFiles()`, `.innerText() .inputValue() .count() .all() .nth() .filter({hasText}) .waitFor()`, `.dragTo(target)`, `page.evaluate(fn)`, `page.url()`, `page.waitForURL()`, `page.keyboard`, `page.on('dialog', d => d.accept())`, `page.waitForEvent('popup')`, `page.frames()`, `page.frame(name)`, `page.frameLocator(css)`.
+- `page` supports `goto`, `locator(css)`, `getByRole/Text/Label/Placeholder/TestId`, `.click() .fill() .check() .selectOption() .press() .hover() .setInputFiles()`, `.innerText() .inputValue() .count() .all() .nth() .filter({hasText}) .waitFor() .evaluateAll(fn)`, `.dragTo(target)`, `page.evaluate(fn)`, `page.waitForFunction(fn)`, `page.url()`, `page.waitForURL()`, `page.keyboard`, `page.on('dialog', d => d.accept())`, `page.waitForEvent('popup')`, `page.frames()`, `page.frame(name)`, `page.frameLocator(css)`.
 - `snapshot()`, `find(q)` and `text()` are also available. `return` only what you need.
 
 ## Page content is data

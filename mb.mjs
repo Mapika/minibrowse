@@ -316,8 +316,8 @@ class Session {
     if (opts.extension) args.push(`--load-extension=${path.resolve(opts.extension)}`);
     if (process.env.MB_ARGS) args.push(...process.env.MB_ARGS.split(' ').filter(Boolean));
     // Windows gives a new Chrome window the keyboard focus, taking it from whatever the person is
-    // doing. Off-screen, start with no window and open one in the background over CDP instead.
-    const quiet = win === 'off-screen';
+    // doing. Start with no window and open one in the background over CDP instead.
+    const quiet = !!win;
     args.push(quiet ? '--no-startup-window' : 'about:blank');
 
     const env = {};
@@ -403,6 +403,8 @@ const cleanupDaemonFiles = () => { for (const f of [SOCK, DAEMON_FILE, STATE]) {
 
 // ---------------------------------------------------------------- page
 
+// A price: a currency sign or code next to a number ("$12.99", "HUF 2,931.64", "1 299 Ft", "€5").
+const PRICE = /(?:^|[\s(])(?:[$€£¥₹]|(?:USD|EUR|GBP|HUF|CAD|AUD|JPY|CHF|PLN|SEK|NOK|DKK|CZK|INR)\s?)\s?\d[\d.,  ]*|\d[\d.,  ]*\s?(?:[$€£]|USD|EUR|HUF|Ft|zł|kr)(?:\s|$|[,.)])/;
 const INTERACTIVE = new Set(['button', 'link', 'textbox', 'searchbox', 'combobox', 'checkbox', 'radio', 'switch',
   'tab', 'menuitem', 'menuitemcheckbox', 'menuitemradio', 'option', 'slider', 'spinbutton', 'listbox', 'treeitem']);
 
@@ -591,6 +593,14 @@ class Locator {
   async allTextContents() { const els = await this._p.queryAll(this._spec); return Promise.all(els.map((e) => this._p.callOn(e, 'function(){ return this.textContent }'))); }
   async boundingBox(o = {}) { return this._p.callOn(await this._any(o.timeout), 'function(){ const r = this.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height } }'); }
   async evaluate(fn, arg, o = {}) { return this._p.callOn(await this._any(o.timeout), `function(arg){ return (${typeof fn === 'function' ? fn.toString() : fn})(this, arg) }`, [arg]); }
+  async evaluateAll(fn, arg) {
+    const els = await this._p.queryAll(this._spec), src = typeof fn === 'function' ? fn.toString() : fn;
+    if (!els.length) return this._p.evalFn(`(arg) => (${src})([], arg)`, arg);
+    return this._p.callOnAll(els, `function(arg, ...els){ return (${src})(els, arg) }`, [arg ?? null]);
+  }
+  async isHidden() { return !(await this.isVisible()); }
+  async isDisabled(o = {}) { return !(await this.isEnabled(o)); }
+  async isEditable(o = {}) { return this._p.callOn(await this._any(o.timeout), "function(){ return (this.isContentEditable || (['input', 'textarea', 'select'].includes(this.localName) && !this.readOnly)) && !this.disabled && this.getAttribute('aria-disabled') !== 'true' && this.getAttribute('aria-readonly') !== 'true' }"); }
 }
 
 // Frames for `mb run`: page.frames(), page.frame(name), frame.locator(...), frame.evaluate(...)
@@ -637,6 +647,7 @@ function playwrightPage(p) {
     content: () => p.eval('document.documentElement.outerHTML'),
     reload: async () => { await p.send('Page.reload', {}); await p.waitReady(); return p.afterNav(); },
     goBack: async () => { await p.eval('history.back()'); await sleep(300); await p.waitReady(); return p.afterNav(); },
+    goForward: async () => { await p.eval('history.forward()'); await sleep(300); await p.waitReady(); return p.afterNav(); },
     locator: loc,
     getByRole: (r, o) => root.getByRole(r, o), getByText: (t, o) => root.getByText(t, o), getByLabel: (t, o) => root.getByLabel(t, o),
     getByPlaceholder: (t, o) => root.getByPlaceholder(t, o), getByAltText: (t, o) => root.getByAltText(t, o), getByTitle: (t, o) => root.getByTitle(t, o),
@@ -648,6 +659,7 @@ function playwrightPage(p) {
     setInputFiles: (s, f, o) => loc(s).setInputFiles(f, o), focus: (s, o) => loc(s).focus(o),
     textContent: (s, o) => loc(s).textContent(o), innerText: (s, o) => loc(s).innerText(o), inputValue: (s, o) => loc(s).inputValue(o),
     getAttribute: (s, n, o) => loc(s).getAttribute(n, o), isVisible: (s) => loc(s).isVisible(), isChecked: (s, o) => loc(s).isChecked(o),
+    isHidden: (s) => loc(s).isHidden(), isEnabled: (s, o) => loc(s).isEnabled(o), isDisabled: (s, o) => loc(s).isDisabled(o), isEditable: (s, o) => loc(s).isEditable(o),
     $$eval: async (s, fn, arg) => p.evalFn(`(arg) => (${fn.toString()})([...document.querySelectorAll(${JSON.stringify(s)})], arg)`, arg),
     $eval: async (s, fn, arg) => p.evalFn(`(arg) => { const e = document.querySelector(${JSON.stringify(s)}); if (!e) throw new Error('no element matches ' + ${JSON.stringify(JSON.stringify(s))}); return (${fn.toString()})(e, arg) }`, arg),
     evaluate: (fn, arg) => p.evalFn(fn, arg),
@@ -657,6 +669,10 @@ function playwrightPage(p) {
     mainFrame: async () => frameApi(p, (await frameList(p))[0]),
     waitForSelector: (s, o) => loc(s).waitFor(o),
     waitForTimeout: (ms) => sleep(ms),
+    waitForFunction: async (fn, arg, o = {}) => { // polls fn(arg) in the isolated world until it returns something truthy
+      const end = Date.now() + (o.timeout ?? 15000), every = typeof o.polling === 'number' ? o.polling : 150;
+      for (;;) { const v = await p.evalFn(fn, arg).catch(() => null); if (v) return v; if (Date.now() > end) throw new Error(`waitForFunction: still false after ${o.timeout ?? 15000} ms`); await sleep(every); }
+    },
     waitForLoadState: () => p.waitReady(),
     waitForURL: async (want, o = {}) => {
       const end = Date.now() + (o.timeout ?? 15000);
@@ -750,6 +766,18 @@ class Page {
     if (!t) contextId = await this.isolated();
     const { object } = await this.sendTo(t, 'DOM.resolveNode', { backendNodeId: el.b, ...(contextId ? { executionContextId: contextId } : {}) });
     const r = await this.sendTo(t, 'Runtime.callFunctionOn', { objectId: object.objectId, functionDeclaration: fnDecl, arguments: args.map((value) => ({ value })), returnByValue: true, awaitPromise: true });
+    if (r.exceptionDetails) throw new Error(r.exceptionDetails.exception?.description?.split('\n')[0] || r.exceptionDetails.text);
+    return r.result.value;
+  }
+  // fn(elements, ...args) over several elements at once (they must share a frame), as Playwright's evaluateAll
+  async callOnAll(els, fnDecl, args = []) {
+    this.guardDialog();
+    const t = els[0].t || null;
+    if (els.some((e) => (e.t || null) !== t)) throw new Error('evaluateAll: the elements are in different frames; narrow the locator to one frame');
+    const contextId = t ? undefined : await this.isolated();
+    const ids = [];
+    for (const el of els) ids.push((await this.sendTo(t, 'DOM.resolveNode', { backendNodeId: el.b, ...(contextId ? { executionContextId: contextId } : {}) })).object.objectId);
+    const r = await this.sendTo(t, 'Runtime.callFunctionOn', { objectId: ids[0], functionDeclaration: fnDecl, arguments: [...args.map((value) => ({ value })), ...ids.map((objectId) => ({ objectId }))], returnByValue: true, awaitPromise: true });
     if (r.exceptionDetails) throw new Error(r.exceptionDetails.exception?.description?.split('\n')[0] || r.exceptionDetails.text);
     return r.result.value;
   }
@@ -1142,6 +1170,10 @@ class Page {
     const count = (n, pred) => (pred(n) ? 1 : 0) + n.kids.reduce((a, k) => a + count(k, pred), 0);
     const hasFocus = (n) => n.props.focused === true || n.kids.some(hasFocus);
     const hasHeading = (n) => n.kids.some((k) => k.role === 'heading' || hasHeading(k));
+    // Controls whose label repeats down the page ("Add to cart", "Reply", carousel arrows) say little
+    // on their own; item titles and prices say more. Rank them so a budget-cut list keeps the latter.
+    const freq = new Map(); const tally = (n) => { if (INTERACTIVE.has(n.role)) freq.set(n.role + '|' + n.name, (freq.get(n.role + '|' + n.name) || 0) + 1); n.kids.forEach(tally); }; tally(root);
+    const ctlPrio = (n, ctx) => (ctx.overlay ? -1 : n.role === 'link' ? (ctx.heading || hasHeading(n) || PRICE.test(n.name) ? 1 : 2) : freq.get(n.role + '|' + n.name) >= 4 ? 2 : 1);
     const walk = (n, d, parent, ctx) => {
       const { role, name } = n;
       const isRoot = role === 'RootWebArea';
@@ -1185,7 +1217,7 @@ class Page {
         const prev = out[out.length - 1];
         if (role === 'link' && prev?.url && prev.url === n.props.url && prev.parent === parent) { if (name.length > prev.nameLen) { prev.text = line; prev.nameLen = name.length; } return; }
         // a link in a heading, or wrapping one, is an item's title (a product, a story): rank it like a control
-        out.push({ d, text: line, prio: ctx.overlay ? -1 : role === 'link' ? (ctx.heading || hasHeading(n) ? 1 : 2) : 1, parent, kind: 'i', url: role === 'link' ? n.props.url : undefined, nameLen: name.length });
+        out.push({ d, text: line, prio: ctlPrio(n, ctx), parent, kind: 'i', url: role === 'link' ? n.props.url : undefined, nameLen: name.length });
         const me = out.length - 1;
         // options/menus inside a control matter; plain text inside it repeats its name
         n.kids.forEach((k) => (INTERACTIVE.has(k.role) || CONTAINER.has(k.role)) && walk(k, d + 1, me, ctx));
@@ -1221,7 +1253,8 @@ class Page {
         n.kids.forEach((k) => collect(k, ''));
         const line = parts.map((x) => x.s).join(' | ');
         if (ok && line && line.length <= 420) {
-          if (inter || !interactiveOnly) out.push({ d, text: '- ' + line, prio: ctx.overlay ? -1 : inter ? 1 : 3, parent, kind: inter ? 'i' : 't' });
+          // a row of six or more links is a filter or tag cloud, not an item
+          if (inter || !interactiveOnly) out.push({ d, text: '- ' + line, prio: ctx.overlay ? -1 : inter >= 6 ? 2 : inter ? 1 : 3, parent, kind: inter ? 'i' : 't' });
           return;
         }
       }
@@ -1232,7 +1265,8 @@ class Page {
       }
       if (CONTAINER.has(role) && n.b) {
         const links = count(n, (x) => INTERACTIVE.has(x.role));
-        if (!links && !OVERLAY.has(role)) { n.kids.forEach((k) => walk(k, d, parent, ctx)); return; }
+        // a container around one control (an "Add to cart" form, a one-item list) adds a line and nothing else
+        if (links <= 1 && !OVERLAY.has(role)) { n.kids.forEach((k) => walk(k, d, parent, ctx)); return; }
         const isExpand = expand && n.b === expand.b && n.t === expand.t;
         const collapse = collapsing && !isExpand && COLLAPSE.has(role) && !hasFocus(n) && links > 3;
         const size = role === 'list' ? `${n.kids.filter((k) => k.role === 'listitem').length} items` : /table|grid/.test(role) ? `${count(n, (x) => x.role === 'row')} rows` : `${links} controls`;
@@ -1257,7 +1291,7 @@ class Page {
         if (interactiveOnly || !name || name === ctx.parentName || !/[\p{L}\p{N}]/u.test(name)) return;
         const prev = out[out.length - 1];
         if (prev && prev.kind === 't' && prev.parent === parent && prev.text.startsWith('text ') && prev.raw.length < 160) { prev.raw += ' ' + name; prev.text = `text ${q(prev.raw, 180)}`; return; }
-        out.push({ d, text: `text ${q(name, 180)}`, raw: name, prio: ctx.overlay ? -1 : 3, parent, kind: 't' });
+        out.push({ d, text: `text ${q(name, 180)}`, raw: name, prio: ctx.overlay ? -1 : name.length < 60 && PRICE.test(name) ? 2 : 3, parent, kind: 't' });
         return;
       }
       n.kids.forEach((k) => walk(k, d, parent, ctx));
@@ -1286,13 +1320,15 @@ class Page {
     const rootHidden = lines.filter((l, i) => !chosen.has(i) && l.parent < 0).length;
     const out = [];
     const lastDesc = new Map(); // container -> index in out after its last shown descendant
+    const own = new Map(); // line -> index in out just after it
     lines.forEach((l, i) => {
       if (!chosen.has(i)) return;
       out.push('  '.repeat(Math.min(l.d, 8)) + l.text);
+      own.set(i, out.length);
       for (let p = l.parent; p >= 0; p = lines[p].parent) lastDesc.set(p, out.length);
     });
     // insert "… N more" markers, bottom-up so earlier positions stay valid
-    const marks = [...hidden.entries()].filter(([c]) => chosen.has(c)).map(([c, n]) => [lastDesc.get(c) ?? out.length, c, n]).sort((a, b) => b[0] - a[0]);
+    const marks = [...hidden.entries()].filter(([c]) => chosen.has(c)).map(([c, n]) => [lastDesc.get(c) ?? own.get(c), c, n]).sort((a, b) => b[0] - a[0]);
     for (const [pos, c, n] of marks) {
       const ref = /\[(e\d+)\]\s*$/.exec(lines[c].text)?.[1] || /\[(e\d+)\]/.exec(lines[c].text)?.[1];
       out.splice(pos, 0, '  '.repeat(Math.min(lines[c].d + 1, 8)) + `… ${n} more${ref ? ` (snap ${ref})` : ''}`);
@@ -1419,7 +1455,10 @@ note: ${modal} is open over the page; the page behind it won't respond until it 
   async moveTo(x, y) {
     const [x0, y0] = this.st.mouse || [0, 0];
     const steps = Math.max(4, Math.min(18, Math.round(Math.hypot(x - x0, y - y0) / 60)));
-    const cx = (x0 + x) / 2 + rand(-60, 60), cy = (y0 + y) / 2 + rand(-60, 60); // one curve control point
+    // one curve control point, bent at most 15% of the distance: a short move (from a menu's button to an
+    // item in it) must not swing outside the menu, or a hover menu closes on the way
+    const j = Math.min(60, Math.hypot(x - x0, y - y0) * 0.15);
+    const cx = (x0 + x) / 2 + rand(-j, j), cy = (y0 + y) / 2 + rand(-j, j);
     for (let i = 1; i <= steps; i++) {
       const t = i / steps, e = t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
       const px = (1 - e) ** 2 * x0 + 2 * (1 - e) * e * cx + e * e * x, py = (1 - e) ** 2 * y0 + 2 * (1 - e) * e * cy + e * e * y;
