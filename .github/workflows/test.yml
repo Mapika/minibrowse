@@ -1,0 +1,48 @@
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash # Git Bash on Windows: test/run.sh runs there too
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q xvfb xauth
+          # Ubuntu 24.04 blocks the unprivileged user namespaces that Chrome's own sandbox needs
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
+      - name: Chrome
+        run: |
+          if [ "$RUNNER_OS" = Windows ]; then ls "/c/Program Files/Google/Chrome/Application" | grep -E '^[0-9.]+$'; else google-chrome --version; fi
+
+      - name: Egress guard tests
+        run: node test/guard-test.mjs
+
+      - name: Browser tests
+        run: bash test/run.sh
+
+      - name: mb logs
+        if: failure()
+        run: |
+          for f in daemon.log chrome.log; do echo "== $f"; tail -n 60 ~/.mb/mbtest/$f 2>/dev/null; done

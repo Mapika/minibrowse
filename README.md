@@ -1,5 +1,7 @@
 # mb: a minimal browser for AI agents
 
+[![test](https://github.com/Mapika/minibrowse/actions/workflows/test.yml/badge.svg)](https://github.com/Mapika/minibrowse/actions/workflows/test.yml)
+
 `mb` gives an AI agent a real Chrome that it drives from the shell. It's built for platforms where
 each agent runs in its own server sandbox.
 
