@@ -1,6 +1,6 @@
 {
   "name": "minibrowse",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A minimal browser for AI agents: real Chrome driven from the shell, compact pages, few calls, zero dependencies",
   "keywords": [
     "browser",
