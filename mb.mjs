@@ -973,13 +973,17 @@ class Page {
   async challenge() {
     try {
       return await this.eval(`(() => {
-        const t = document.title.toLowerCase(), h = document.documentElement.outerHTML.slice(0, 200000);
-        if (/just a moment|attention required|checking your browser/.test(t) || /cf_chl_|challenge-platform/.test(h)) return 'cloudflare';
-        if (/captcha-delivery\\.com|geo\\.captcha/.test(h)) return 'datadome';
-        if (/px-captcha|_pxCaptcha|perimeterx/i.test(h)) return 'perimeterx';
-        if (/_Incapsula_Resource|incapsula/i.test(h)) return 'imperva';
-        if (/sec-if-cpt|akamai.*challenge/i.test(h) || /access denied/.test(t)) return 'akamai/denied';
-        if (/g-recaptcha|hcaptcha\\.com|cf-turnstile/.test(h) && /verify|robot|human/i.test(document.body?.innerText.slice(0, 3000) || '')) return 'captcha';
+        // Look for the challenge itself (its elements, title or settings), not for the vendor's name:
+        // normal pages load these vendors' scripts and list their domains in a Content-Security-Policy.
+        const t = document.title.toLowerCase(), $ = (s) => document.querySelector(s);
+        const body = (document.body?.innerText || '').slice(0, 3000);
+        if (/just a moment|attention required|checking your browser/.test(t) || $('#challenge-form, #challenge-stage, #cf-challenge-running') || [...document.scripts].some((x) => x.textContent.includes('_cf_chl_opt'))) return 'cloudflare';
+        if ($('iframe[src*="captcha-delivery.com"]')) return 'datadome';
+        if ($('#px-captcha') || /robot or human|access to this page has been denied/.test(t)) return 'perimeterx';
+        if ($('iframe[src*="_Incapsula_Resource"]')) return 'imperva';
+        if ($('#sec-if-cpt-container, #sec-cpt-if') || /access denied/.test(t)) return 'akamai/denied';
+        if (/(^|\.)google\.[a-z.]+$/.test(location.hostname) && location.pathname.startsWith('/sorry/')) return 'google';
+        if ($('.g-recaptcha, iframe[src*="recaptcha"], iframe[src*="hcaptcha.com"], .cf-turnstile') && /verify|robot|human/i.test(body)) return 'captcha';
         return null;
       })()`);
     } catch { return null; }
@@ -1016,6 +1020,14 @@ class Page {
   }
 
   async afterNav() {
+    // Some sites (Amazon) first answer with an empty page whose script sets a cookie and reloads,
+    // and some apps only render after load: give an empty http(s) page a moment to become real.
+    const empty = () => this.eval(`(() => { const b = document.body; return /^https?:$/.test(location.protocol) && (!b || (!b.innerText.trim() && !b.querySelector('a,button,input,img,svg,canvas,iframe,video'))) ? performance.timeOrigin : 0 })()`).catch(() => -1);
+    const first = await empty();
+    if (first > 0) {
+      for (const end = Date.now() + 5000; Date.now() < end;) { await sleep(250); if ((await empty()) !== first) break; }
+      await this.waitReady(10000);
+    }
     let ch = await this.challenge();
     if (ch) {
       const end = Date.now() + CHALLENGE_WAIT;
@@ -1035,7 +1047,7 @@ class Page {
   //  - refs are stable within a document, so `snap -d` can show only what changed
 
   async axTree() {
-    const keep = new Set(['checked', 'selected', 'expanded', 'disabled', 'focused', 'level', 'url', 'required', 'invalid', 'pressed', 'hidden']);
+    const keep = new Set(['checked', 'selected', 'expanded', 'disabled', 'focused', 'level', 'url', 'required', 'invalid', 'pressed', 'hidden', 'modal']);
     const build = (nodes, t) => {
       const byId = new Map(nodes.map((n) => [n.nodeId, n]));
       const conv = (n) => {
@@ -1121,7 +1133,7 @@ class Page {
   }
 
   // Flatten the tree into candidate lines: {d, text, prio, parent, kind}
-  lines(root, { interactiveOnly = false, expand = null } = {}) {
+  lines(root, { interactiveOnly = false, expand = null, collapse: collapsing = true } = {}) {
     const out = [];
     const COLLAPSE = new Set(['navigation', 'complementary', 'contentinfo']);
     const CONTAINER = new Set(['list', 'table', 'grid', 'treegrid', 'tree', 'menu', 'menubar', 'listbox', 'tablist', 'radiogroup', 'form', 'dialog', 'alertdialog', 'navigation', 'complementary', 'contentinfo', 'search', 'region']);
@@ -1129,6 +1141,7 @@ class Page {
     const q = (x, n) => JSON.stringify(x.length > n ? x.slice(0, n - 1) + '…' : x);
     const count = (n, pred) => (pred(n) ? 1 : 0) + n.kids.reduce((a, k) => a + count(k, pred), 0);
     const hasFocus = (n) => n.props.focused === true || n.kids.some(hasFocus);
+    const hasHeading = (n) => n.kids.some((k) => k.role === 'heading' || hasHeading(k));
     const walk = (n, d, parent, ctx) => {
       const { role, name } = n;
       const isRoot = role === 'RootWebArea';
@@ -1171,7 +1184,8 @@ class Page {
         // links that repeat the previous link's target (card image + card title) add nothing
         const prev = out[out.length - 1];
         if (role === 'link' && prev?.url && prev.url === n.props.url && prev.parent === parent) { if (name.length > prev.nameLen) { prev.text = line; prev.nameLen = name.length; } return; }
-        out.push({ d, text: line, prio: ctx.overlay ? -1 : role === 'link' ? (ctx.heading ? 1 : 2) : 1, parent, kind: 'i', url: role === 'link' ? n.props.url : undefined, nameLen: name.length });
+        // a link in a heading, or wrapping one, is an item's title (a product, a story): rank it like a control
+        out.push({ d, text: line, prio: ctx.overlay ? -1 : role === 'link' ? (ctx.heading || hasHeading(n) ? 1 : 2) : 1, parent, kind: 'i', url: role === 'link' ? n.props.url : undefined, nameLen: name.length });
         const me = out.length - 1;
         // options/menus inside a control matter; plain text inside it repeats its name
         n.kids.forEach((k) => (INTERACTIVE.has(k.role) || CONTAINER.has(k.role)) && walk(k, d + 1, me, ctx));
@@ -1220,11 +1234,16 @@ class Page {
         const links = count(n, (x) => INTERACTIVE.has(x.role));
         if (!links && !OVERLAY.has(role)) { n.kids.forEach((k) => walk(k, d, parent, ctx)); return; }
         const isExpand = expand && n.b === expand.b && n.t === expand.t;
-        const collapse = !isExpand && COLLAPSE.has(role) && !hasFocus(n) && links > 3;
+        const collapse = collapsing && !isExpand && COLLAPSE.has(role) && !hasFocus(n) && links > 3;
         const size = role === 'list' ? `${n.kids.filter((k) => k.role === 'listitem').length} items` : /table|grid/.test(role) ? `${count(n, (x) => x.role === 'row')} rows` : `${links} controls`;
-        out.push({ d, text: `${role}${name ? ' ' + q(name, 60) : ''} [${size}${collapse ? ', collapsed' : ''}] [${this.refFor(n.b, n.t)}]`, prio: OVERLAY.has(role) || ctx.overlay ? -1 : 0, parent, kind: 'c', collapsed: collapse });
-        if (collapse) return;
+        out.push({ d, text: `${role}${name ? ' ' + q(name, 60) : ''} [${size}${collapse ? ', collapsed' : ''}] [${this.refFor(n.b, n.t)}]`, prio: OVERLAY.has(role) || ctx.overlay ? -1 : 0, parent, kind: 'c', collapsed: collapse,
+          modal: n.props.modal === true || n.props.modal === 'true' ? `${role}${name ? ' ' + q(name, 60) : ''} [${this.refFor(n.b, n.t)}]` : undefined });
         const me = out.length - 1;
+        if (collapse) { // a site's search box often lives in its header nav: keep text fields visible
+          const fields = []; const grab = (k) => { if (['searchbox', 'textbox'].includes(k.role) && k.b) fields.push(k); else k.kids.forEach(grab); }; n.kids.forEach(grab);
+          fields.slice(0, 3).forEach((k) => walk(k, d + 1, me, ctx));
+          return;
+        }
         n.kids.forEach((k) => walk(k, d + 1, me, { ...ctx, overlay: ctx.overlay || OVERLAY.has(role) }));
         return;
       }
@@ -1307,7 +1326,11 @@ class Page {
     }
     const lines = this.lines(root, { interactiveOnly, expand });
     const i = await this.eval('({url: location.href, title: document.title, y: Math.round(scrollY), h: document.documentElement.scrollHeight, vh: innerHeight})').catch(() => ({}));
-    const head = `${i.title || ''} — ${i.url || ''} | scroll ${i.y}/${Math.max(0, i.h - i.vh)}`;
+    let head = `${i.title || ''} — ${i.url || ''} | scroll ${i.y}/${Math.max(0, i.h - i.vh)}`;
+    // A modal (cookie consent, sign-in prompt) is listed where it sits in the page, often last: say up front that it blocks the page.
+    const modal = !scope && lines.find((l) => l.modal)?.modal;
+    if (modal) head += `
+note: ${modal} is open over the page; the page behind it won't respond until it is closed`;
     const full = lines.map((l) => l.text);
     if (diff) {
       const prev = this.st.last;
@@ -1334,7 +1357,7 @@ class Page {
 
   async find(q, context = 1) {
     const tree = await this.prepare();
-    const lines = this.lines(tree).map((l) => '  '.repeat(Math.min(l.d, 8)) + l.text);
+    const lines = this.lines(tree, { collapse: false }).map((l) => '  '.repeat(Math.min(l.d, 8)) + l.text); // search inside collapsed navs too
     const re = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
     const hits = lines.map((l, i) => (re.test(l) ? i : -1)).filter((i) => i >= 0);
     if (!hits.length) return `no lines match ${JSON.stringify(q)}`;
@@ -1423,6 +1446,8 @@ class Page {
         while (e && e.shadowRoot && e.shadowRoot.elementFromPoint) { const d = e.shadowRoot.elementFromPoint(x, y); if (!d || d === e) break; e = d; }
         const inside = (n) => { for (; n; n = n.parentNode || n.host) if (n === this) return true; return false; };
         if (!e || inside(e) || (this.labels && [...this.labels].some((l) => l === e || l.contains(e)))) return null;
+        const dlg = e.closest('dialog[open], [role=dialog], [role=alertdialog], [aria-modal=true]');
+        if (dlg && !dlg.contains(this)) return 'a dialog' + ((dlg.getAttribute('aria-label') || '').trim() ? ' "' + dlg.getAttribute('aria-label').trim().slice(0, 60) + '"' : '');
         return '<' + e.localName + (e.id ? '#' + e.id : '') + (typeof e.className === 'string' && e.className ? '.' + e.className.trim().split(/\\s+/).slice(0, 2).join('.') : '') + '> "' + (e.innerText || '').trim().slice(0, 40) + '"'; }`, [x, y]).catch(() => null);
       if (!hit) break;
       if (attempt >= 3) { this.notes.push(`the click may have landed on ${hit}, which covers the target (a banner or overlay? close it first)`); break; }
