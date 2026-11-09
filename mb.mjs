@@ -278,7 +278,8 @@ class Session {
       '--disable-sync', '--disable-breakpad', '--password-store=basic', '--mute-audio',
       '--disable-component-extensions-with-background-pages', '--hide-crash-restore-bubble',
       `--window-size=${w},${h}`, win === 'off-screen' ? '--window-position=-32000,-32000' : '--window-position=0,0',
-      `--lang=${opts.lang || 'en-US'}`, `--accept-lang=${opts.lang || 'en-US'},en;q=0.9`,
+      // Languages only: Chrome adds the q-values itself (giving them here yields "en;q=0.9;q=0.8").
+      `--lang=${opts.lang || 'en-US'}`, `--accept-lang=${[...new Set([opts.lang || 'en-US', (opts.lang || 'en-US').split('-')[0]])].join(',')}`,
     ];
     if (opts['debug-port']) args.push('--remote-debugging-port=0', '--remote-debugging-address=127.0.0.1');
     const off = ['Translate', 'MediaRouter', 'OptimizationHints', 'AutofillServerCommunication', 'InterestFeedContentSuggestions',
