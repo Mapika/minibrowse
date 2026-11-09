@@ -1,0 +1,9 @@
+<!doctype html><meta charset=utf-8><title>consent test</title>
+<h1>Article</h1>
+<p id=state>undecided</p>
+<button onclick="document.getElementById('state').textContent = 'reject clicked outside the banner'">Reject</button>
+<div role=dialog aria-modal=true aria-label="Privacy choices" style="position:fixed;bottom:0;left:0;right:0;background:#eee;padding:16px">
+  <p>We use cookies and similar technologies to measure traffic and show ads.</p>
+  <button onclick="document.getElementById('state').textContent = 'accepted'; this.parentNode.remove()">Accept all</button>
+  <button onclick="document.getElementById('state').textContent = 'rejected'; this.parentNode.remove()">Reject all</button>
+</div>

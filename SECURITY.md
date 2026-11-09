@@ -50,6 +50,12 @@ document covers what mb defends against, how, and what it leaves to you.
     from another site gets nothing.
   - The value never appears in any output; it shows as `[secret:NAME]`.
   - Stored in `~/.mb/secrets.json` (0600).
+- **`mb net`** shows JSON the page fetched. Values under keys that look like credentials (`token`,
+  `session`, `password`, `auth`, `api_key`, `csrf`, `cookie`…) are replaced with `[hidden]`, stored
+  secrets are redacted as everywhere else, and the output is marked as untrusted page data.
+- **Cookie banners:** mb clicks a banner's refusal button ("Reject all", "Decline", and the same in
+  other languages) once per page, only when a box around the button talks about cookies or consent,
+  and says so in a note. It never clicks "Accept". `--consent keep` turns this off.
 - **Raw CDP** (`mb cdp`, `cdp()` in `mb run`) stays available, minus methods that dump cookies, read
   files, change permissions or reveal automation. `MB_RAW_CDP=all` lifts this.
 - **`mb run`:** agent scripts run in a separate V8 context with no `process`, `require`, `import()`,

@@ -125,6 +125,19 @@ await page.getByRole('button', { name: 'Does not exist' }).click({ timeout: 800 
 JS
 )
 check "run: clear error for a missing element" "$E" 'no element matches after 800 ms'
+check "run: evaluateAll over several elements" "$(mb run <<<"return await page.locator('button').evaluateAll((els) => els.length > 3)")" '^true'
+
+# ---------------------------------------------------------------- agent UX
+mb goto http://localhost:8766/ >/dev/null
+check "role= selector" "$(mb click 'role=button[name="Place order"]' 2>&1)" 'button "Place order" \[e[0-9]*\] focused'
+check "no match: error suggests the closest ref" "$(mb click 'text=Place ordr' 2>&1)" 'closest: e[0-9]* button "Place order"'
+check "no match: a bare role word is explained" "$(mb fill searchbox x 2>&1)" 'read as a CSS tag name'
+mb click "text=Load results" >/dev/null
+check "net: lists the page's JSON responses" "$(mb net slow)" '\[0\] 200 http://localhost:8766/slow'
+check "net: shows a response body" "$(mb net 0)" '"results":42'
+CS=$(mb goto http://localhost:8766/consent.html)
+check "consent: banner declined with a note" "$CS" 'declined a cookie banner ("Reject all")'
+check "consent: the banner's refusal was clicked, nothing else" "$(mb eval 'document.getElementById("state").textContent')" '^rejected'
 
 # ---------------------------------------------------------------- security
 B=$(mb goto http://127.0.0.1:9999/ 2>&1)

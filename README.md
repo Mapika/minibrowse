@@ -81,6 +81,10 @@ JS
 Other commands:
 - `mb find <text>` and `mb text` read the page.
 - `mb tabs` lists tabs, and `mb downloads` lists downloaded files.
+- `mb net` lists the JSON the page fetched from its own API, and `mb net <n>` prints one response.
+- Cookie banners are declined automatically (the privacy-preserving answer), so the agent doesn't
+  spend a step on each. Start with `--consent keep` (or set `MB_CONSENT=keep`) to leave them alone.
+- `MB_DEBUG=1` logs how long actions wait, and why, to `~/.mb/<session>/daemon.log`.
 - `mb handoff "Log in, then click Done"` passes the browser to a person and waits until they're done.
 - `mb help` lists everything else.
 
